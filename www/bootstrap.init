@@ -1,0 +1,70 @@
+<?php
+
+
+	$loadApi 		= function() {
+
+		$root 				= RELROOT;
+		$requests 			= include('../server/requests.php');
+
+		if ($requests === false) {
+			$pwd 			= getcwd();
+			$logStr 		= "Requests could not be found: '../server/requests.php' in $pwd";
+			error_log($logStr);
+
+			if ($_REQUEST) throw new exception($logStr);
+			return false;
+		}
+
+		return $requests;
+	};
+
+	$boot 			= function($loader) {
+
+		$defineRoot = function() {			
+			$sep 		= explode("/", $_SERVER['REQUEST_URI']);
+			$sep 		= count($sep) - 1;
+			$relRoot 	= str_repeat("../", $sep);
+
+			define('RELROOT', $relRoot);
+		};
+
+		$requests 	= $loader($defineRoot());
+		$processor 	= function(&$requests) {
+
+			if (isset($requests['token'])) {
+				return true;
+			} elseif (isset($requests['q']) or $requests === 0) {
+				$page 		= (isset($requests['q'])) ? $requests['q'] : 'home';
+				$path 		= "../ui/$page.php";
+				$template	= "../ui/template.php";
+
+				ob_start();
+					$included 	= include($template);
+					$buffer 	= ob_get_contents();
+				ob_end_clean();
+
+				if (!$included) {
+					throw new exception("Could not load Template");
+					exit();
+				}
+
+				ob_start();
+					$included 	= include($path);
+					$repContent	= ob_get_contents();
+				ob_end_clean();
+
+				if ($included) {
+					print str_replace('%page%', $repContent, $buffer);
+					exit();
+				}
+			}
+
+			return false;
+		};
+
+		return $processor($requests);
+	};
+
+	if (!$boot($loadApi)) throw new exception("Could not boot server");
+
+?>
